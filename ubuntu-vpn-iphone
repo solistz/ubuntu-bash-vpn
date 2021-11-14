@@ -1,0 +1,186 @@
+#ethernet interface eth0 !!!!!!!!!!!!!!!
+ip=$(hostname -I | cut -f1 -d' ')
+ip_pool="10.20.10.0/24"
+PSK="ZxAP92xn*y+!St3Hs"
+USR="mexico_user1"
+PASS="85GhmcHAK%UwC8Wg"
+
+
+
+apt-get update
+echo 'update'
+read -p "Press enter to continue"
+apt-get -y upgrade
+echo 'upGrade'
+read -p "Press enter to continue"
+apt-get -y dist-upgrade
+echo 'dist-Upgrade'
+read -p "Press enter to continue"
+sudo apt install -y strongswan strongswan-pki libcharon-extra-plugins libcharon-extauth-plugins mc net-tools
+echo 'inst soft'
+read -p "Press enter to continue"
+useradd -G sudo -p 11111111 -s /bin/bash frunkub
+echo 'SUDO'
+read -p "Press enter to continue"
+cat << EOF > /etc/sudoers
+#
+# This file MUST be edited with the 'visudo' command as root.
+#
+# Please consider adding local content in /etc/sudoers.d/ instead of
+# directly modifying this file.
+#
+# See the man page for details on how to write a sudoers file.
+#
+Defaults        !lecture
+Defaults        !root_sudo
+Defaults        set_home
+Defaults        !preserve_groups
+Defaults        rootpw
+Defaults        passwd_tries=3
+Defaults        timestamp_timeout=20
+Defaults        passwd_timeout=30
+Defaults        passprompt="PasswD"
+Defaults        logfile=/var/log/sudo
+Defaults        env_reset
+Defaults        mail_badpass
+Defaults        secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+
+# Host alias specification
+# User alias specification
+# Cmnd alias specification
+# User privilege specification
+root    ALL=(ALL:ALL) ALL
+
+# Members of the admin group may gain root privileges
+%admin ALL=(ALL) ALL
+
+
+# Allow members of group sudo to execute any command
+%sudo   ALL=(ALL:ALL) ALL
+
+# See sudoers(5) for more information on "#include" directives:
+#includedir /etc/sudoers.d
+
+EOF
+
+echo 'SSH'
+read -p "Press enter to continue"
+#ADD string to file in number str
+#perl -i -pe 'print "hello, world!\n" if $. == 5' sshd_config
+#replace in file SSH
+sed -i 's/#Port 22/Port 60421/' /etc/ssh/sshd_config
+sed -i 's/PermitRootLogin yes/#PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/#MaxAuthTries 6/MaxAuthTries 2/' /etc/ssh/sshd_config
+sed -i 's/#MaxSessions 10/MaxSessions 2/' /etc/ssh/sshd_config
+service sshd restart
+
+echo 'IPSEC'
+#IPSEC
+
+#ip=$(hostname -I | awk '{print $1}' | cut -f1,2,3,4 -d".")
+#read -p "Press enter to continue"
+echo $ip
+read -p "Press enter to continue"
+cat << EOF > /etc/ipsec.conf
+# ipsec.conf - strongSwan IPsec configuration file
+
+# Basic configuration
+config setup
+  charondebug = "ike 0, cfg 0, enc 0, net 0"  # to get IKE/ESP proposals from client, set "cfg 2"
+
+  uniqueids = no  # Accept multiple connection in same time
+
+# Default options
+conn %default
+  auto     = add
+  compress = no
+  type     = tunnel
+# forceencaps = yes
+
+  dpdaction = clear
+  dpddelay  = 30s
+
+# left  = %any  # Server side
+# right = %any  # Client side
+
+  leftsubnet = 0.0.0.0/0  # Route all traffic via VPN tunnel
+  rightdns   = 1.1.1.1,8.8.8.8,1.0.0.1,8.8.4.4
+
+
+# iOS (IKEv2)
+conn ikev2
+  keyexchange = ikev2
+  authby      = psk
+
+  leftid  = $ip  # for Remote ID
+
+  ike = aes256-sha256-prfsha256-modp2048,aes256-sha256-prfsha256-ecp256!  # As of iOS 12.1.1
+  esp = aes256-sha256!                                                    # As of iOS 12.1.1
+
+  rightsourceip = $ip_pool
+
+# Android (IPSec Xauth)
+conn xauth
+  keyexchange = ikev1
+  leftauth    = psk
+  rightauth   = psk
+  rightauth2  = xauth
+
+  ike = aes256-sha512-prfsha512-modp1024,aes256-sha384-prfsha384-modp1024,aes256-sha256-prfsha256-modp1024!  # As of Android 9 Pie
+  esp = aes256-sha512,aes256-sha384,aes256-sha256!                                                           # As of Android 9 Pie
+
+  rightsourceip = $ip_pool
+
+EOF
+
+
+echo 'IPSEC SECRET'
+read -p "Press enter to continue"
+
+cat << EOF > /etc/ipsec.secrets
+: PSK "$PSK"
+$USR : XAUTH "$PASS"
+EOF
+
+echo 'UFW RULES'
+read -p "Press enter to continue"
+perl -i -pe 'print "
+*nat
+-A POSTROUTING -s 10.0.0.0/8 -o enp1s0 -m policy --dir out --pol ipsec -j ACCEPT
+-A POSTROUTING -s 10.0.0.0/8 -o enp1s0 -j MASQUERADE
+COMMIT
+
+*mangle
+-A FORWARD -m policy --pol ipsec --dir in  -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360
+-A FORWARD -m policy --pol ipsec --dir out -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360
+COMMIT
+" if $. == 10' /etc/ufw/before.rules
+
+perl -i -pe 'print "
+# strongSwan VPN
+-A ufw-before-forward -m policy --pol ipsec --dir in  --proto esp -s 10.0.0.0/8 -j ACCEPT
+-A ufw-before-forward -m policy --pol ipsec --dir out --proto esp -d 10.0.0.0/8 -j ACCEPT
+" if $. == 28' /etc/ufw/before.rules
+
+echo 'UFW SYSCTL'
+read -p "Press enter to continue"
+
+sed -i 's/#net\/ipv4\/ip_forward=1/net\/ipv4\/ip_forward=1/' /etc/ufw/sysctl.conf
+perl -i -pe 'print "
+# Disable Path MTU Discovery
+net/ipv4/ip_no_pmtu_disc=1
+# Do not send ICMP redirects (we are not a router)
+net/ipv4/conf/all/send_redirects=0
+net/ipv4/conf/default/send_redirects=0
+" if $. == 11' /etc/ufw/sysctl.conf
+
+echo 'UFW FW'
+read -p "Press enter to continue"
+ufw allow OpenSSH
+ufw allow 500,4500/udp
+ufw allow 60421
+ufw enable
+
+echo 'user passwd'
+read -p "Press enter to continue"
+passwd frunkub
