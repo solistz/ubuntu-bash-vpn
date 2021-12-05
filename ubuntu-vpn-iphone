@@ -1,9 +1,9 @@
 #ethernet interface eth0 !!!!!!!!!!!!!!!
 ip=$(hostname -I | cut -f1 -d' ')
 ip_pool="10.20.10.0/24"
-PSK="ZxAP92xn*y+!St3Hs"
-USR="mexico_user1"
-PASS="85GhmcHAK%UwC8Wg"
+PSK="123456qwerty"
+USR="user"
+PASS=")(*&0987OIUYoiuy"
 
 
 
