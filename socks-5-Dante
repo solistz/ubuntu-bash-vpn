@@ -1,0 +1,135 @@
+
+***********************************
+apt-get update -y && apt-get dist-upgrade
+shutdown -r now
+apt install mc
+hostname
+(mysrv)
+vi /etc/hosts
+127.0.0.1 mysrv
+shutdown -r now
+========================================
+настройка sudo
+root@mysrv:/etc# cat /etc/sudoers
+#
+# This file MUST be edited with the 'visudo' command as root.
+#
+# Please consider adding local content in /etc/sudoers.d/ instead of
+# directly modifying this file.
+#
+# See the man page for details on how to write a sudoers file.
+#
+Defaults        !lecture
+Defaults        !root_sudo
+Defaults        set_home
+Defaults        !preserve_groups
+Defaults        rootpw
+Defaults        passwd_tries=3
+Defaults        timestamp_timeout=20
+Defaults        passwd_timeout=30
+Defaults        passprompt="PasswD"
+Defaults        logfile=/var/log/sudo
+Defaults        env_reset
+Defaults        mail_badpass
+Defaults        secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+
+# Host alias specification
+# User alias specification
+# Cmnd alias specification
+# User privilege specification
+root    ALL=(ALL:ALL) ALL
+
+# Members of the admin group may gain root privileges
+%admin ALL=(ALL) ALL
+
+# Allow members of group sudo to execute any command
+%sudo   ALL=(ALL:ALL) ALL
+
+# See sudoers(5) for more information on "#include" directives:
+#includedir /etc/sudoers.d
+=============================================
+Додаємо користувача lirpa
+Rdsntym21(Квітень21)
+
+adduser  lirpa
+y
+
+Используйте команду usermod, чтобы добавить пользователя в группу sudo:
+usermod -aG sudo  lirpa
+
+==============================================
+SSH змінюємо файл
+/etc/ssh/sshd_config
+
+Port 60421
+#PermitRootLogin yes
+MaxAuthTries 1
+MaxSessions 1
+PasswordAuthentication yes
+================================================
+root@mysrv:/etc/ssh# service sshd restart
+================================================
+
+Install Dante on Ubuntu
+=======================
+sudo apt-get install dante-server
+nano /etc/danted.conf
+
+logoutput: /var/log/socks.log
+internal: eth0 port = 60415
+external: eth0
+clientmethod: none
+socksmethod: username
+user.privileged: root
+user.notprivileged: nobody
+
+client pass {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       log: error connect disconnect
+}
+client block {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       log: connect error
+}
+socks pass {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       command: bind connect udpassociate
+       log: error connect disconnect
+       socksmethod: username
+}
+socks block {
+       from: 0.0.0.0/0 to: 0.0.0.0/0
+       log: connect error
+}
+
+
+systemctl start danted
+systemctl status danted
+// Automatic Start Danted After Reboot
+systemctl enable danted
+
+
+=============================
+iptables
+
+iptables -A INPUT -p tcp -m tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG NONE -j DROP
+iptables -A INPUT -p tcp -m tcp --tcp-flags FIN,SYN,RST,PSH,ACK,URG FIN,SYN,RST,PSH,ACK,URG -j DROP
+iptables -A INPUT -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m state --state NEW -j DROP
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
+iptables -A INPUT -p tcp -m tcp --dport 60421 -j ACCEPT
+iptables -A INPUT -p tcp -m tcp --dport 60415 -j ACCEPT
+
+iptables -P INPUT DROP
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+iptables-save
+
+==================================
+Time Date
+timedatectl status
+timedatectl list-timezones
+sudo timedatectl set-timezone Europe/Kiev
